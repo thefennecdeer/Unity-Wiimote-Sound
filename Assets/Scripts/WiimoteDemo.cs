@@ -170,9 +170,6 @@ public class WiimoteDemo : MonoBehaviour {
             wiimote.RequestIdentifyWiiMotionPlus();
         if ((wiimote.wmp_attached || wiimote.Type == WiimoteType.PROCONTROLLER) && GUILayout.Button("Activate WMP"))
             wiimote.ActivateWiiMotionPlus();
-        if ((wiimote.wmp_attached || wiimote.Type == WiimoteType.PROCONTROLLER) && GUILayout.Button("Activate WMPN"))
-            wiimote.ActivateWiiMotionPlusNunchuck();
-
         if ((wiimote.current_ext == ExtensionController.MOTIONPLUS ||
             wiimote.current_ext == ExtensionController.MOTIONPLUS_CLASSIC ||
             wiimote.current_ext == ExtensionController.MOTIONPLUS_NUNCHUCK) && GUILayout.Button("Deactivate WMP"))
@@ -340,10 +337,6 @@ public class WiimoteDemo : MonoBehaviour {
                     wmpOffset = Vector3.zero;
                 GUILayout.Label("Offset: " + wmpOffset.ToString());
 
-                for (int j = 0; j < data.rawData.Length; j++)
-                {
-                    GUILayout.Label(Convert.ToString(data.rawData[j], 2).PadLeft(8, '0'));
-                }
             }
             GUILayout.EndScrollView();
         } else {

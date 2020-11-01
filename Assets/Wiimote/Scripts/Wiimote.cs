@@ -420,42 +420,32 @@ namespace WiimoteApi
             //    plugged in - IF there is no extension plugged into the passthrough port.
             // 2. The standard extension identifier at 0xA400FA now reads 00 00 A4 20 04 05
             // 3. Extension reports now contain Wii Motion Plus data.
-            res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x04 });
-            if (res < 0) return false;
 
-            _current_ext = ExtensionController.MOTIONPLUS;
-            if (_Extension == null || _Extension.GetType() != typeof(MotionPlusData))
-                _Extension = new MotionPlusData(this);
+            if(current_ext == ExtensionController.NUNCHUCK) // sends a different byt to activate passthrought mode of a nunchuck is connected
+            {
+                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x05 });
+                if (res < 0) return false;
+
+                _current_ext = ExtensionController.MOTIONPLUS_NUNCHUCK;
+                if (_Extension == null || _Extension.GetType() != typeof(MotionPlusNunchuckData))
+                    _Extension = new MotionPlusNunchuckData(this);
+            }
+            // add classic controller
+            else
+            {
+                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x04 });
+                if (res < 0) return false;
+
+                _current_ext = ExtensionController.MOTIONPLUS;
+                if (_Extension == null || _Extension.GetType() != typeof(MotionPlusData))
+                    _Extension = new MotionPlusData(this);
+            }
+
             ExpectingWiiMotionPlusSwitch = true;
 
             return true;
         }
 
-        public bool ActivateWiiMotionPlusNunchuck()
-        {
-            if (!wmp_attached)
-                Debug.LogWarning("There is a request to activate the Wii Motion Plus even though it has not been confirmed to exist!  Trying anyway.");
-
-            // Initialize the Wii Motion Plus by writing 0x55 to register 0xA600F0
-            int res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600F0, new byte[] { 0x55 });
-            if (res < 0) return false;
-
-            // Activate the Wii Motion Plus as the active extension by writing 0x04 to register 0xA600FE
-            // This does 3 things:
-            // 1. A status report (0x20) will be sent, which indicates that an extension has been
-            //    plugged in - IF there is no extension plugged into the passthrough port.
-            // 2. The standard extension identifier at 0xA400FA now reads 00 00 A4 20 04 05
-            // 3. Extension reports now contain Wii Motion Plus data.
-            res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x05 });
-            if (res < 0) return false;
-
-            _current_ext = ExtensionController.MOTIONPLUS_NUNCHUCK;
-            if (_Extension == null || _Extension.GetType() != typeof(MotionPlusNunchuckData))
-                _Extension = new MotionPlusNunchuckData(this);
-            ExpectingWiiMotionPlusSwitch = true;
-
-            return true;
-        }
 
         public bool DeactivateWiiMotionPlus()
         {
