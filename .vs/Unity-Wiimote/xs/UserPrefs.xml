@@ -1,0 +1,25 @@
+﻿<Properties StartupConfiguration="{779F2015-CDE6-3603-931A-9DC701A1C49A}|">
+  <MonoDevelop.Ide.Workbench>
+    <Files>
+      <File FileName="Assets/Wiimote/Scripts/Wiimote.cs" Line="455" Column="49" />
+      <File FileName="Assets/Wiimote/Scripts/Enums.cs" Line="112" Column="29" />
+      <File FileName="Assets/Wiimote/Scripts/WiimoteData/BalanceBoardData.cs" Line="27" Column="37" />
+      <File FileName="Assets/Scripts/WiimoteDemo.cs" Line="79" Column="56" />
+      <File FileName="Assets/Wiimote/Scripts/WiimoteData/MotionPlusNunchuckData.cs" Line="139" Column="39" />
+    </Files>
+    <Pads>
+      <Pad Id="ProjectPad">
+        <State name="__root__">
+          <Node name="Unity-Wiimote" expanded="True" selected="True" />
+        </State>
+      </Pad>
+    </Pads>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" />
+  <MonoDevelop.Ide.ItemProperties.Assembly-CSharp PreferredExecutionTarget="91463019-a526-4162-a60b-53ee57d0bfb8" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MultiItemStartupConfigurations />
+</Properties>

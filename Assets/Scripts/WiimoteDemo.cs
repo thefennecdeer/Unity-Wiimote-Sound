@@ -11,6 +11,7 @@ public class WiimoteDemo : MonoBehaviour {
     public RectTransform[] ir_dots;
     public RectTransform[] ir_bb;
     public RectTransform ir_pointer;
+    public int currentWiimote = 0; 
 
     private Quaternion initial_rotation;
 
@@ -27,7 +28,7 @@ public class WiimoteDemo : MonoBehaviour {
 	void Update () {
         if (!WiimoteManager.HasWiimote()) { return; }
 
-        wiimote = WiimoteManager.Wiimotes[0];
+        wiimote = WiimoteManager.Wiimotes[Mathf.Min(currentWiimote, WiimoteManager.Wiimotes.Count-1)];
 
         int ret;
         do
@@ -36,6 +37,24 @@ public class WiimoteDemo : MonoBehaviour {
 
             if (ret > 0 && wiimote.current_ext == ExtensionController.MOTIONPLUS) {
                 Vector3 offset = new Vector3(  -wiimote.MotionPlus.PitchSpeed,
+                                                wiimote.MotionPlus.YawSpeed,
+                                                wiimote.MotionPlus.RollSpeed) / 95f; // Divide by 95Hz (average updates per second from wiimote)
+                wmpOffset += offset;
+
+                model.rot.Rotate(offset, Space.Self);
+            }
+            else if (ret > 0 && wiimote.current_ext == ExtensionController.MOTIONPLUS_NUNCHUCK)
+            {
+                Vector3 offset = new Vector3(-wiimote.MotionPlusNunchuck.PitchSpeed,
+                                                wiimote.MotionPlusNunchuck.YawSpeed,
+                                                wiimote.MotionPlusNunchuck.RollSpeed) / 95f; // Divide by 95Hz (average updates per second from wiimote)
+                wmpOffset += offset;
+
+                model.rot.Rotate(offset, Space.Self);
+            }
+            else if (ret > 0 && wiimote.current_ext == ExtensionController.MOTIONPLUS_CLASSIC)
+            {
+                Vector3 offset = new Vector3(-wiimote.MotionPlus.PitchSpeed,
                                                 wiimote.MotionPlus.YawSpeed,
                                                 wiimote.MotionPlus.RollSpeed) / 95f; // Divide by 95Hz (average updates per second from wiimote)
                 wmpOffset += offset;
@@ -56,7 +75,7 @@ public class WiimoteDemo : MonoBehaviour {
         model.minus.enabled = wiimote.Button.minus;
         model.home.enabled = wiimote.Button.home;
 
-        if (wiimote.current_ext != ExtensionController.MOTIONPLUS)
+        if (wiimote.current_ext != ExtensionController.MOTIONPLUS && wiimote.current_ext != ExtensionController.MOTIONPLUS_NUNCHUCK && wiimote.current_ext != ExtensionController.MOTIONPLUS_CLASSIC)
             model.rot.localRotation = initial_rotation;
 
         if (ir_dots.Length < 4) return;
@@ -108,6 +127,9 @@ public class WiimoteDemo : MonoBehaviour {
 
         if (wiimote == null)
             return;
+        GUILayout.Label("Current Wiimote: " + currentWiimote + "/ "+ (WiimoteManager.Wiimotes.Count - 1));
+        if (GUILayout.Button("Next Wiimote"))
+            currentWiimote = (currentWiimote + 1) % WiimoteManager.Wiimotes.Count;
 
         GUILayout.Label("Extension: " + wiimote.current_ext.ToString());
 
@@ -148,6 +170,9 @@ public class WiimoteDemo : MonoBehaviour {
             wiimote.RequestIdentifyWiiMotionPlus();
         if ((wiimote.wmp_attached || wiimote.Type == WiimoteType.PROCONTROLLER) && GUILayout.Button("Activate WMP"))
             wiimote.ActivateWiiMotionPlus();
+        if ((wiimote.wmp_attached || wiimote.Type == WiimoteType.PROCONTROLLER) && GUILayout.Button("Activate WMPN"))
+            wiimote.ActivateWiiMotionPlusNunchuck();
+
         if ((wiimote.current_ext == ExtensionController.MOTIONPLUS ||
             wiimote.current_ext == ExtensionController.MOTIONPLUS_CLASSIC ||
             wiimote.current_ext == ExtensionController.MOTIONPLUS_NUNCHUCK) && GUILayout.Button("Deactivate WMP"))
@@ -273,6 +298,53 @@ public class WiimoteDemo : MonoBehaviour {
 				GUILayout.Label ("Plus: " + data.plus);
 				GUILayout.Label ("Whammy: " + data.GetWhammy01());
 			}
+            else if (wiimote.current_ext == ExtensionController.BALANCEBOARD)
+            {
+                GUILayout.Label("BalanceBoard", bold);
+                BalanceBoardData data = wiimote.BalanceBoard;
+                if (GUILayout.Button("CalibrateLow"))
+                    data.CalibrateLow();
+                if (GUILayout.Button("CalibrateHigh"))
+                    data.CalibrateHigh();
+
+                GUILayout.Label("TopLeft: " + data.topLeft + "\t  TopRight: " + data.topRight);
+                GUILayout.Label("BottomLeft: " + data.bottomLeft + "\t  BottomRight: " + data.bottomRight);
+                GUILayout.Label("Total: " + (data.topLeft + data.topRight + data.bottomLeft + data.bottomRight));
+
+            }
+            else if (wiimote.current_ext == ExtensionController.MOTIONPLUS_NUNCHUCK)
+            {
+                GUILayout.Label("RawData", bold);
+                MotionPlusNunchuckData data = wiimote.MotionPlusNunchuck;
+                
+                GUILayout.Label("Nunchuck:", bold);
+                GUILayout.Label("Stick: " + data.stick[0] + ", " + data.stick[1]);
+                GUILayout.Label("C: " + data.c);
+                GUILayout.Label("Z: " + data.z);
+
+                GUILayout.Label("Wii Motion Plus:", bold);
+                GUILayout.Label("Pitch Speed: " + data.PitchSpeed);
+                GUILayout.Label("Yaw Speed: " + data.YawSpeed);
+                GUILayout.Label("Roll Speed: " + data.RollSpeed);
+                GUILayout.Label("Pitch Slow: " + data.PitchSlow);
+                GUILayout.Label("Yaw Slow: " + data.YawSlow);
+                GUILayout.Label("Roll Slow: " + data.RollSlow);
+
+                if (GUILayout.Button("Zero Out WMP"))
+                {
+                    data.SetZeroValues();
+                    model.rot.rotation = Quaternion.FromToRotation(model.rot.rotation * GetAccelVector(), Vector3.up) * model.rot.rotation;
+                    model.rot.rotation = Quaternion.FromToRotation(model.rot.forward, Vector3.forward) * model.rot.rotation;
+                }
+                if (GUILayout.Button("Reset Offset"))
+                    wmpOffset = Vector3.zero;
+                GUILayout.Label("Offset: " + wmpOffset.ToString());
+
+                for (int j = 0; j < data.rawData.Length; j++)
+                {
+                    GUILayout.Label(Convert.ToString(data.rawData[j], 2).PadLeft(8, '0'));
+                }
+            }
             GUILayout.EndScrollView();
         } else {
             scrollPosition = Vector2.zero;
