@@ -1,5 +1,6 @@
 C# / Unity Wii Remote API
 =========================
+//Edit Jelle Vermandere 2020
 
 This is an easy to use interface between Unity3D (or C# in general with minimal changes) and a Wii Remote controller.
 The library uses a slightly modified version of [Signal11's HIDAPI](https://github.com/signal11/hidapi) to handle
@@ -20,6 +21,8 @@ API:
         - *Wii Motion Plus*: Change in Pitch / Yaw / Roll.
         - *Wii U Pro Controller*: All Buttons and Joysticks - The Wii U Pro Controller acts as a Wii Remote with a custom extension controller, so it is compatible with this API.
         - *Guitar Hero Guitar Controller*: All buttons, both strum directions, whammy, slider (touchbar), and analog stick
+        - *Wii balance Board*: 4 different pressure values, with calibration mode (currently only relative)
+        - *PassthroughMode*: pass through the values of nunchucks and classic controllers while also passing through the motionplus data (tsted and works with: "-x0" remotes )
         - More extension controllers coming soon!  Raw data also available for custom extension controllers.
     - Controlling the remote's 4 LEDs
     - Status reporting (battery level, player LED state, etc.)
@@ -43,7 +46,7 @@ While the API is very powerful already, I would still like to make changes to it
 like to:
 
 - Add support for all common extension controllers (Classic Controller Pro, etc.)
-    - Add support for Nunchuck passthrough / Classic Controller passthrough mode on the Wii Motion Plus
+    
 - Add speaker support (no small feat!)
 
 If you would like to help implement any of these changes, feel free to submit a pull request!

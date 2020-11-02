@@ -102,10 +102,10 @@ namespace WiimoteApi
         /// An activated Wii Motion Plus with no extension controllers in passthrough mode.
         MOTIONPLUS,
         /// An activated Wii Motion Plus with a Nunchuck in passthrough mode.
-        /// \warning Nunchuck passthrough is currently not supported.
+
         MOTIONPLUS_NUNCHUCK,
         /// An activated Wii Motion Plus with a Classic Controller in passthrough mode. 
-        /// \warning Classic Controller passthrough is currently not supported
+       
         MOTIONPLUS_CLASSIC,
         /// Guitar Hero controller
         GUITAR,

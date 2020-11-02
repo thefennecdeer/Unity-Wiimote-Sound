@@ -113,8 +113,8 @@ namespace WiimoteApi
         }
 
         /// If this Wiimote is a nunchuck in passthrough mode,
-        /// this contains all relevant balance boardData as it is reported by
-        /// the Controller.  If this Wiimote is in passthroughmode, this is \c null.
+        /// this contains all relevant data as it is reported by
+        /// the Controller.  If this Wiimote is not in passthroughmode, this is \c null.
         ///
         /// \sa current_ext
         public MotionPlusNunchuckData MotionPlusNunchuck
@@ -123,6 +123,21 @@ namespace WiimoteApi
             {
                 if (current_ext == ExtensionController.MOTIONPLUS_NUNCHUCK)
                     return (MotionPlusNunchuckData)_Extension;
+                return null;
+            }
+        }
+
+        /// If this Wiimote is a classic controller in passthrough mode,
+        /// this contains all relevant data as it is reported by
+        /// the Controller.  If this Wiimote is not in passthroughmode, this is \c null.
+        ///
+        /// \sa current_ext
+        public MotionPlusClassicControllerData MotionPlusClassicController
+        {
+            get
+            {
+                if (current_ext == ExtensionController.MOTIONPLUS_CLASSIC)
+                    return (MotionPlusClassicControllerData)_Extension;
                 return null;
             }
         }
@@ -264,12 +279,14 @@ namespace WiimoteApi
             else if (val == ID_ActiveMotionPlus_Classic)
             {
                 _current_ext = ExtensionController.MOTIONPLUS_CLASSIC;
-                _Extension = null;
+                if (_Extension == null || _Extension.GetType() != typeof(MotionPlusClassicControllerData))
+                    _Extension = new MotionPlusClassicControllerData(this);
             }
             else if (val == ID_ClassicPro)
             {
-                _current_ext = ExtensionController.CLASSIC_PRO;
-                _Extension = null;
+                _current_ext = ExtensionController.CLASSIC;
+                if (_Extension == null || _Extension.GetType() != typeof(ClassicControllerData))
+                    _Extension = new ClassicControllerData(this);
             }
             else if (val == ID_Nunchuck || val == ID_Nunchuck2)
             {
@@ -421,19 +438,27 @@ namespace WiimoteApi
             // 2. The standard extension identifier at 0xA400FA now reads 00 00 A4 20 04 05
             // 3. Extension reports now contain Wii Motion Plus data.
 
-            if(current_ext == ExtensionController.NUNCHUCK) // sends a different byt to activate passthrought mode of a nunchuck is connected
+            if(current_ext == ExtensionController.NUNCHUCK) // sends a different byt to activate passthrought mode if a nunchuck is connected
             {
-                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x05 });
+                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x05 }); // send byte 0x05 to activate passthroughmode
                 if (res < 0) return false;
 
                 _current_ext = ExtensionController.MOTIONPLUS_NUNCHUCK;
                 if (_Extension == null || _Extension.GetType() != typeof(MotionPlusNunchuckData))
                     _Extension = new MotionPlusNunchuckData(this);
             }
-            // add classic controller
+            else if (current_ext == ExtensionController.CLASSIC || current_ext == ExtensionController.CLASSIC_PRO) // sends a different byt to activate passthrought mode if a classic controller is connected
+            {
+                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x07 }); // send byte 0x07 to activate passthroughmode
+                if (res < 0) return false;
+
+                _current_ext = ExtensionController.MOTIONPLUS_CLASSIC;
+                if (_Extension == null || _Extension.GetType() != typeof(MotionPlusClassicControllerData))
+                    _Extension = new MotionPlusClassicControllerData(this);
+            }
             else
             {
-                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x04 });
+                res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA600FE, new byte[] { 0x04 }); // send byte 0x04 to activate the motionplus
                 if (res < 0) return false;
 
                 _current_ext = ExtensionController.MOTIONPLUS;

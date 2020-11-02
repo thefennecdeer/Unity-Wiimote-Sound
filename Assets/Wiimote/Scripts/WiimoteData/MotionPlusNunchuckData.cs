@@ -6,6 +6,8 @@ namespace WiimoteApi
 {
     public class MotionPlusNunchuckData : WiimoteData
     {
+    //motion plus
+
         /// The rotational velocity in the Pitch direction of the Wii Remote, as
         /// reported by the Wii Motion Plus.  Measured in degrees per second.
         ///
@@ -76,7 +78,7 @@ namespace WiimoteApi
         // shitty that I don't even care anymore.
         private const float MagicCalibrationConstant = 0.05f;
 
-//Nuchuk data
+    //Nuchuk data
 
         /// Nunchuck accelerometer values.  These are in the same (RAW) format
         /// as Wiimote::accel.
@@ -124,7 +126,7 @@ namespace WiimoteApi
             _stick_readonly = new ReadOnlyArray<byte>(_stick);
         }
 
-        public byte[] rawData = new byte[0];
+        public byte[] rawData = new byte[0]; // the raw data is also stored for debugging
 
         public override bool InterpretData(byte[] data)
         {
@@ -140,9 +142,9 @@ namespace WiimoteApi
                 return false;
             }
 
-            
 
-            if ((data[5] & 0x02) == 0x02) // the byte to check weither the data is from the wmp or the nunchuck 
+            // the byte to check weither the data is from the wmp or the nunchuck 
+            if ((data[5] & 0x02) == 0x02) // if 1 > WMP
             {
                 _YawSpeedRaw = data[0];
                 _YawSpeedRaw |= (data[3] & 0xfc) << 6;
@@ -171,7 +173,7 @@ namespace WiimoteApi
                     _RollSpeed *= 2000f / 440f;
 
             }
-            else
+            else // if 0 > Nunchuck values
             {
                 _stick[0] = data[0];
                 _stick[1] = data[1];
@@ -184,9 +186,6 @@ namespace WiimoteApi
                 _z = (data[5] & 0x04) != 0x04;
             }
             
-            
-//Nunchuck
-
             
             return true;
         }
