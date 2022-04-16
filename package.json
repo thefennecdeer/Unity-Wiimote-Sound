@@ -1,0 +1,23 @@
+{
+  "name": "be.jellever.wiimoteapi",
+  "version": "0.0.1",
+  "displayName": "Wiimote API",
+  "description": "Tools to connect and interact with wiimotes",
+  "keywords": [
+    "wii",
+    "wiimote"
+  ],
+  "author": {
+    "name": "Jelle",
+    "email": "jelle@jellever.be",
+    "url": "https://www.jellever.be"
+  },
+  "samples": [
+    {
+      "displayName": "Working Sample scenes",
+      "description": "Shows how everything works in practice",
+      "path": "Samples~"
+    }
+  ],
+  "type": "tool"
+}
