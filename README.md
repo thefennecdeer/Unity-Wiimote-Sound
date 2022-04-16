@@ -35,18 +35,4 @@ API:
 Installation
 ------------
 
-The latest release can be found [here](http://www.github.com/Flafla2/Unity-Wiimote/releases)
-
-To install, open Unity-Wiimote.unitypackage or go to Assets->Import Package->Custom Package... in the Unity Editor and locate Unity-Wiimote.unitypackage.
-
-Future Changes
---------------
-
-While the API is very powerful already, I would still like to make changes to it to improve it even more.  Namely I would
-like to:
-
-- Add support for all common extension controllers (Classic Controller Pro, etc.)
-    
-- Add speaker support (no small feat!)
-
-If you would like to help implement any of these changes, feel free to submit a pull request!
+instal the package from this Repo
