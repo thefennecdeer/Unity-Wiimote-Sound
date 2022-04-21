@@ -8,7 +8,7 @@ using WiimoteApi.Internal;
 namespace WiimoteApi
 {
 
-    public class WiimoteManager
+    public static class WiimoteManager
     {
         private const ushort vendor_id_wiimote = 0x057e;
         private const ushort product_id_wiimote = 0x0306;

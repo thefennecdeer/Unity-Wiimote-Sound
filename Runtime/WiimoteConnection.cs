@@ -113,9 +113,10 @@ public class WiimoteConnection : MonoBehaviour
                     if (buttonData.one) Debug.Log(i + ": 1");
                     if (buttonData.two) Debug.Log(i + ": 2");
 
-                    //AccelData accelData = WiimoteManager.Wiimotes[i].Accel;
+                    //Vector3 RawData = new Vector3(WiimoteManager.Wiimotes[i].Accel.accel[0], WiimoteManager.Wiimotes[i].Accel.accel[1], WiimoteManager.Wiimotes[i].Accel.accel[2]);
 
-                    //Debug.Log(i + ": " + accelData.accel);
+                    Debug.Log(i + ": " + WiimoteManager.Wiimotes[i].Accel.GetAccelVector());
+                    //Debug.Log(i + ":raw  " + RawData);
                 }
 
             }

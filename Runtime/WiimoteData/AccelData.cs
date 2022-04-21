@@ -35,10 +35,11 @@ namespace WiimoteApi
         /// By default this is set to experimental calibration data.
         /// 
         /// int[calibration step,calibration data] (size 3x3)
+        /// public int[,] accel_calib = {{ 479, 478, 569 },{ 472, 568, 476 },{ 569, 469, 476 }
         public int[,] accel_calib = {
-                                    { 479, 478, 569 },
-                                    { 472, 568, 476 },
-                                    { 569, 469, 476 }
+                                    { 497, 492, 592 },
+                                    { 500, 592, 492 },
+                                    { 596, 492, 493 }
                                 };
 
         public AccelData(Wiimote Owner)
@@ -127,6 +128,16 @@ namespace WiimoteApi
             ret[1] = (y_raw - o[1]) / (accel_calib[1, 1] - o[1]);
             ret[2] = (z_raw - o[2]) / (accel_calib[0, 2] - o[2]);
             return ret;
+        }
+
+        /// <summary>
+        /// Returns the calibrated Acceleration vector of the wiimote
+        /// </summary>
+        /// <returns>Vector3 between -1 and 1</returns>
+        public Vector3 GetAccelVector()
+        {
+            float[] accelData = GetCalibratedAccelData();
+            return new Vector3(accelData[0], accelData[1], accelData[2]);
         }
     }
 }
