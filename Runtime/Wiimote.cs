@@ -154,10 +154,12 @@ namespace WiimoteApi
         public StatusData Status { get { return _Status; } }
         private StatusData _Status;
 
+        internal WiimoteDataSender DataSender;
+
         /// A pointer representing HIDApi's low-level device handle to this
         /// Wii Remote.  Use this when interfacing directly with HIDApi.
         public IntPtr hidapi_handle { get { return _hidapi_handle; } }
-        private IntPtr _hidapi_handle = IntPtr.Zero;
+        internal IntPtr _hidapi_handle = IntPtr.Zero;
 
         /// The RAW (unprocessesed) extension data reported by the Wii Remote.  This could
         /// be used for debugging new / undocumented extension controllers.
@@ -196,11 +198,12 @@ namespace WiimoteApi
 
         private bool ExpectingWiiMotionPlusSwitch = false;
 
-        public Wiimote(IntPtr hidapi_handle, string hidapi_path, WiimoteType Type)
+        internal Wiimote(IntPtr hidapi_handle, string hidapi_path, WiimoteType Type, WiimoteDataSender data_sender)
         {
             _hidapi_handle = hidapi_handle;
             _hidapi_path = hidapi_path;
             _Type = Type;
+            DataSender = data_sender;
 
             _Accel = new AccelData(this);
             _Button = new ButtonData(this);
@@ -523,10 +526,9 @@ namespace WiimoteApi
             if (RumbleOn)
                 final[1] |= 0x01;
 
-            int res = WiimoteManager.SendRaw(hidapi_handle, final);
+            int res = DataSender.SendRaw(final);
 
             if (res < -1) Debug.LogError("Incorrect Input to HIDAPI.  No data has been sent.");
-
 
             return res;
         }
@@ -708,8 +710,7 @@ namespace WiimoteApi
         /// \endcode
         public int ReadWiimoteData()
         {
-            byte[] buf = new byte[22];
-            int status = WiimoteManager.RecieveRaw(hidapi_handle, buf);
+            int status = DataSender.ReadRaw(out byte[] buf);
             if (status <= 0) return status; // Either there is some sort of error or we haven't recieved anything
 
             int typesize = GetInputDataTypeSize((InputDataType)buf[0]);
