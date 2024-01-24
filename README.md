@@ -1,6 +1,7 @@
 C# / Unity Wii Remote API
 =========================
-//Edit Jelle Vermandere 2020
+// Edit Jelle Vermandere 2020
+// Sound added by brandonhare 2024
 
 This is an easy to use interface between Unity3D (or C# in general with minimal changes) and a Wii Remote controller.
 The library uses a slightly modified version of [Signal11's HIDAPI](https://github.com/signal11/hidapi) to handle

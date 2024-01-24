@@ -1,16 +1,15 @@
 {
-  "name": "be.jellever.wiimoteapi",
+  "name": "brandonhare.wiimoteapi-sound",
   "version": "0.0.1",
-  "displayName": "Wiimote API",
+  "displayName": "Wiimote API With Sound",
   "description": "Tools to connect and interact with wiimotes",
   "keywords": [
     "wii",
     "wiimote"
   ],
   "author": {
-    "name": "Jelle",
-    "email": "jelle@jellever.be",
-    "url": "https://www.jellever.be"
+    "name": "brandonhare",
+    "url": "https://github.com/brandonhare/Unity-Wiimote-Sound"
   },
   "samples": [
     {
