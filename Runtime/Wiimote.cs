@@ -604,11 +604,53 @@ namespace WiimoteApi
             return SendWithType(OutputDataType.SPEAKER_ENABLE, mask);
         }
 
-        private int SendSpeakerMuted(bool muted)
+        public void InitSpaker(){
+            SendSpeakerEnabled(true);
+            SendSpeakerMuted(true);
+            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20009, new byte[] { 1 });
+            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20001, new byte[] { 8 });
+            int sampleRateValue = 150 * WiimoteManager.MaxWriteFrequency;
+            byte volume = 0x3F;
+            byte[] configData = new byte[7] { 0, 0, (byte)(sampleRateValue & 0xFF), (byte)((sampleRateValue >> 8) & 0xFF), volume, 0, 0 };
+            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20001, configData);
+            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20008, new byte[] { 1 });
+            SendSpeakerMuted(false);
+        }
+
+        public int SendSpeakerMuted(bool muted)
         {
             byte[] mask = new byte[] { (byte)(muted ? 0x04 : 0x00) };
 
             return SendWithType(OutputDataType.SPEAKER_MUTE, mask);
+        }
+
+        public void StopSound(){
+            DataSender.SendSound(null, false);
+        }
+        public void PlaySound(AudioClip sound, bool loop){
+            if (sound.channels != 1){
+                Debug.LogError($"Cannot play non-mono AudioClip {sound.name}, it has {sound.channels} channels!");
+                StopSound();
+                return;
+            }
+            if (sound.loadState != AudioDataLoadState.Loaded){
+                Debug.LogError($"Cannot play AudioClip {sound.name}, it is not loaded!  Set its loadType to DecompressOnLoad");
+                StopSound();
+                return;
+            }
+            // todo cache converted audioclips
+            int numSamples = sound.samples;
+            float[] samples = new float[numSamples];
+            sound.GetData(samples, 0);
+            PlaySound(new ReadOnlySpan<float>(samples), (double)sound.frequency, loop);
+        }
+
+        public void PlaySound(ReadOnlySpan<float> samples, double source_sample_rate, bool loop){
+            if (source_sample_rate != WiimoteManager.AudioSampleRate)
+                samples = AudioConverter.Resample(samples, source_sample_rate, WiimoteManager.AudioSampleRate);
+            byte[] adpcm_samples = AudioConverter.ConvertSamplesToADPCM(samples);
+
+            DataSender.SendSound(adpcm_samples, loop);
         }
 
         /// \brief Request a Wii Remote Status update.

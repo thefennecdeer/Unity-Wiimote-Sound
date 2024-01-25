@@ -29,6 +29,7 @@ namespace WiimoteApi
         /// If you attempt to write at a rate faster than this, the extra write requests will
         /// be queued up and written to the Wii Remote after the delay is up.
         public static int MaxWriteFrequency = 5; // In ms
+        public static double AudioSampleRate = 20000 / (double)MaxWriteFrequency;
 
         /// Mechanism to notify the read/write thread about new wiimotes to keep track of
         private static ConcurrentQueue<WiimoteDataSender> NewWiimoteQueue;

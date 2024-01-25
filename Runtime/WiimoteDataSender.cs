@@ -11,13 +11,25 @@ namespace WiimoteApi
 	/// Helper class responsible for queuing data to/from the wiimote on the separate thread.
 	/// Each wiimote has its own instantiation of this class and the thread just checks them all.
 	internal class WiimoteDataSender {
-		public bool should_exit = false;
-
 		internal IntPtr hidapi_wiimote;
+		internal bool should_exit = false;
+
+
 
 		private ConcurrentQueue<byte[]> write_queue = new ConcurrentQueue<byte[]>();
 		private ConcurrentQueue<byte[]> read_queue = new ConcurrentQueue<byte[]>();
+
+
+		private bool rumble = false;
 		private byte[] read_data = null;
+
+		private byte[] sound_to_play = null;
+		private bool loop_sound = false;
+		private bool muted = true;
+		private int sample_index = 0;
+		private byte[] current_sound = null;
+		private byte[] sample_buf = new byte[22] {(byte)OutputDataType.SPEAKER_DATA, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
 
 		internal WiimoteDataSender(IntPtr handle){
 			hidapi_wiimote = handle;
@@ -49,6 +61,13 @@ namespace WiimoteApi
 				return 0;
 		}
 
+		internal void SendSound(byte[] adpcm_samples, bool loop){
+			lock(sound_to_play) {
+				sound_to_play = adpcm_samples;
+				loop_sound = loop;
+			}
+		}
+
 		internal void UpdateOnThread(){
 			// read
 			while (true){
@@ -69,6 +88,10 @@ namespace WiimoteApi
 
 			// write
 			if (write_queue.TryDequeue(out byte[] data)){
+				if (data[0] == (byte)OutputDataType.SPEAKER_MUTE){
+					muted = (data[1] & 0x40) != 0;
+				}
+				rumble = (data[1] & 1) != 0;
 				int res = HIDapi.hid_write(hidapi_wiimote, data, new UIntPtr(Convert.ToUInt32(data.Length)));
 				if (res == -1)
 					Debug.LogError("HidAPI reports error " + res + " on write: " + Marshal.PtrToStringUni(HIDapi.hid_error(hidapi_wiimote)));
@@ -76,7 +99,50 @@ namespace WiimoteApi
 					Debug.Log("Sent " + res + "b: [" + data[0].ToString("X").PadLeft(2, '0') + "] " + BitConverter.ToString(data, 1));
 			}
 
-			// todo: audio
+			byte[] audio;
+			bool should_loop;
+			lock(sound_to_play) {
+				audio = sound_to_play;
+				should_loop = loop_sound;
+			}
+			
+			if (audio != null){
+				if (current_sound != audio){
+					// new sound
+					current_sound = audio;
+					sample_index = 0;
+				}
+
+				if (!muted){
+					int audio_len = audio.Length;
+					int i = 0;
+					for (; i < 20; ++i){
+						if (sample_index >= audio_len){
+							if (should_loop)
+								sample_index = 0;
+							else {
+								lock(sound_to_play){
+									if (sound_to_play == audio){
+										sound_to_play = null;
+									}
+								}
+								break;
+							}
+						}
+						sample_buf[2 + i] = audio[sample_index++];
+					}
+					sample_buf[1] = (byte)(i << 3);
+					if (rumble)
+						sample_buf[1] |= 1;
+
+					int res = HIDapi.hid_write(hidapi_wiimote, sample_buf, new UIntPtr(Convert.ToUInt32(sample_buf.Length)));
+					if (res == -1)
+						Debug.LogError("HidAPI reports error " + res + " on write: " + Marshal.PtrToStringUni(HIDapi.hid_error(hidapi_wiimote)));
+				}
+			} else {
+				current_sound = null;
+				sample_index = 0;
+			}
 		}
 	}
 }
