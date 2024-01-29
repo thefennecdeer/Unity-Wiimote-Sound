@@ -28,8 +28,8 @@ namespace WiimoteApi
         ///
         /// If you attempt to write at a rate faster than this, the extra write requests will
         /// be queued up and written to the Wii Remote after the delay is up.
-        public static int MaxWriteFrequency = 5; // In ms
-        public static double AudioSampleRate = 20000 / (double)MaxWriteFrequency;
+        public static double DefaultSendRateMs = 11.0;
+        public static double DefaultWiimotePlusSendRateMs = 6.666666666666667;
 
         /// Mechanism to notify the read/write thread about new wiimotes to keep track of
         private static ConcurrentQueue<WiimoteDataSender> NewWiimoteQueue;
@@ -41,7 +41,8 @@ namespace WiimoteApi
         public static bool FindWiimotes()
         {
             bool ret = _FindWiimotes(WiimoteType.WIIMOTE);
-            ret = ret || _FindWiimotes(WiimoteType.WIIMOTEPLUS);
+            if (_FindWiimotes(WiimoteType.WIIMOTEPLUS))
+                ret = true;
             return ret;
         }
 
@@ -106,19 +107,23 @@ namespace WiimoteApi
 
                     remote = new Wiimote(handle, enumerate.path, trueType, dataSender);
 
+                    if (trueType == WiimoteType.WIIMOTEPLUS)
+                        remote.SendRateMs = DefaultWiimotePlusSendRateMs;
+
                     if (Debug_Messages)
                         Debug.Log("Found New Remote: " + remote.hidapi_path);
 
                     Wiimotes.Add(remote);
+                    found = true;
 
-                    remote.SendDataReportMode(InputDataType.REPORT_BUTTONS);
-                    remote.SendStatusInfoRequest();
+                    //remote.SendDataReportMode(InputDataType.REPORT_BUTTONS);
+                    //remote.SendStatusInfoRequest();
 
                     if (NewWiimoteQueue == null){
                         NewWiimoteQueue = new ConcurrentQueue<WiimoteDataSender>();
                         NewWiimoteQueue.Enqueue(dataSender);
 
-                        Thread writeThread = new Thread(new ParameterizedThreadStart(SendThread));
+                        Thread writeThread = new Thread(ReadWriteThreadFunc);
                         writeThread.Start(NewWiimoteQueue);
                         // no need to save a reference to the thread
                     } else {
@@ -164,13 +169,16 @@ namespace WiimoteApi
             return !(Wiimotes.Count <= 0 || Wiimotes[0] == null || Wiimotes[0].hidapi_handle == IntPtr.Zero);
         }
 
-        
-        private static void SendThread(object newWiimotesQueueObject)
+        // Entry point for the read/write thread
+        private static void ReadWriteThreadFunc(object newWiimotesQueueObject)
         {
             ConcurrentQueue<WiimoteDataSender> newWiimotesQueue = (ConcurrentQueue<WiimoteDataSender>)newWiimotesQueueObject;
             List<WiimoteDataSender> wiimotes = new List<WiimoteDataSender>(1);
-            long goalTimeMs = 0;
+            try {
+            var freq = System.Diagnostics.Stopwatch.Frequency;
+            long goalTimeTicks = 0;
             var timer = System.Diagnostics.Stopwatch.StartNew();
+
             while (true)
             {
                 // collect new wiimotes
@@ -179,28 +187,53 @@ namespace WiimoteApi
                 }
 
                 // update all wiimotes
+                double waitTimeMs = 1000.0;
                 for (int i = 0; i < wiimotes.Count; ++i){
-                    var wiimote = wiimotes[i];
+                    WiimoteDataSender wiimote = wiimotes[i];
+                    wiimote.UpdateOnThread();
                     if (wiimote.should_exit){
                         HIDapi.hid_close(wiimote.hidapi_wiimote);
                         wiimote.hidapi_wiimote = (IntPtr)0;
                         wiimotes.RemoveAt(i);
                         i -= 1;
-                        continue;
+                    } else {
+                        waitTimeMs = Math.Min(waitTimeMs, wiimote.SendRateMs);
+                        // todo: different wiimotes with different wait times will be bad!
                     }
-
-                    wiimote.UpdateOnThread();
                 }
 
                 if (wiimotes.Count == 0)
-                    break;
+                    break; // done
 
-                goalTimeMs += MaxWriteFrequency;
-                Thread.Sleep((int)(goalTimeMs - timer.ElapsedMilliseconds));
+
+                // sleep until next send cycle
+                // (needs to be as accurate as we can get for audio)
+                long tickDelta = (long)(waitTimeMs * (double)freq / 1000.0);
+                if (tickDelta < 10)
+                    tickDelta = 10; // prevent infinite loop just in case
+                int sleepMs = 0;
+                long nowTicks = timer.ElapsedTicks;
+                while (sleepMs <= 0){
+                    goalTimeTicks += tickDelta;
+                    sleepMs = (int)((goalTimeTicks - nowTicks) * 1000 / freq);
+                }
+                Thread.Sleep(sleepMs);
+                // todo: spin-wait to be even more accurate??
             }
 
-            Debug.Log("Send thread exiting");
-        }
+            } catch (Exception){
+                // some unexpected error occured, cleanup the wiimotes
+                while (newWiimotesQueue.TryDequeue(out WiimoteDataSender newWiimote)){
+                    wiimotes.Add(newWiimote);
+                }
+                foreach (WiimoteDataSender wiimote in wiimotes){
+                    wiimote.should_exit = true;
+                    HIDapi.hid_close(wiimote.hidapi_wiimote);
+                    wiimote.hidapi_wiimote = (IntPtr)0;
+                }
+                throw;
+            }
 
+        }
     }
 } // namespace WiimoteApi

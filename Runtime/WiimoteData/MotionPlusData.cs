@@ -1,4 +1,5 @@
-﻿namespace WiimoteApi
+﻿using UnityEngine;
+namespace WiimoteApi
 {
 
     public class MotionPlusData : WiimoteData
@@ -73,7 +74,14 @@
         // shitty that I don't even care anymore.
         private const float MagicCalibrationConstant = 0.05f;
 
-        public MotionPlusData(Wiimote Owner) : base(Owner) { }
+        public MotionPlusData(Wiimote Owner) : base(Owner) {
+            if (Owner.Type == WiimoteType.WIIMOTEPLUS){
+                // random experimental value but better than the default for my remote
+                _PitchZero = 8330;
+                _YawZero = 8227;
+                _RollZero = 8144;
+            }
+        }
 
         public override bool InterpretData(byte[] data)
         {
@@ -107,6 +115,13 @@
                 _RollSpeed *= 2000f / 440f;
 
             return true;
+        }
+
+        // (pitch, yaw, roll) since the last update.
+        public Vector3 GetAngularVelocity(){
+            return new Vector3(
+                PitchSpeed / -95.0f, YawSpeed / 95.0f, RollSpeed / -95.0f
+            );
         }
 
         /// Calibrates the zero values of the Wii Motion Plus in the Pitch, Yaw, and Roll directions.

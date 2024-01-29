@@ -131,13 +131,13 @@ namespace WiimoteApi
         }
 
         /// <summary>
-        /// Returns the calibrated Acceleration vector of the wiimote
+        /// Returns the calibrated Acceleration vector of the wiimote in unity coords.
         /// </summary>
         /// <returns>Vector3 between -1 and 1</returns>
         public Vector3 GetAccelVector()
         {
             float[] accelData = GetCalibratedAccelData();
-            return new Vector3(accelData[0], accelData[1], accelData[2]);
+            return new Vector3(accelData[0], -accelData[2], accelData[1]);
         }
     }
 }

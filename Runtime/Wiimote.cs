@@ -10,7 +10,7 @@ namespace WiimoteApi
 
     public delegate void ReadResponder(byte[] data);
     [System.Serializable]
-    public class Wiimote
+    public class Wiimote : IDisposable
     {
         /// Represents whether or not to turn on rumble when sending reports to
         /// the Wii Remote.  This will only be applied when a data report is sent.
@@ -142,6 +142,7 @@ namespace WiimoteApi
             }
         }
 
+        public WiimoteData Extension { get { return _Extension; }}
         private WiimoteData _Extension;
 
         /// Button data component.
@@ -198,6 +199,19 @@ namespace WiimoteApi
 
         private bool ExpectingWiiMotionPlusSwitch = false;
 
+        public double SendRateMs {
+            get { return DataSender.SendRateMs; }
+            set { DataSender.SendRateMs = value; }
+        }
+        public double TargetAudioSampleRate {
+            get {
+                if (Type == WiimoteType.WIIMOTEPLUS)
+                    return 6000.0;
+                else
+                    return 40000.0 / SendRateMs;
+            }
+        }
+
         internal Wiimote(IntPtr hidapi_handle, string hidapi_path, WiimoteType Type, WiimoteDataSender data_sender)
         {
             _hidapi_handle = hidapi_handle;
@@ -214,13 +228,18 @@ namespace WiimoteApi
             //RequestIdentifyWiiMotionPlus(); // why not?
         }
 
+        public void Dispose(){
+            WiimoteManager.Cleanup(this);
+        }
+
         private static byte[] ID_InactiveMotionPlus = new byte[] { 0x00, 0x00, 0xA6, 0x20, 0x00, 0x05 };
 
         private void RespondIdentifyWiiMotionPlus(byte[] data)
         {
+            _wmp_attached = false;
+
             if (data.Length != ID_InactiveMotionPlus.Length)
             {
-                _wmp_attached = false;
                 return;
             }
 
@@ -230,16 +249,33 @@ namespace WiimoteApi
 
             for (int x = 0; x < data.Length; x++)
             {
-                // [x != 4] is necessary because byte 5 of the identifier changes based on the state of the remote
+                // necessary due to the inconsistency noted above.
+                if (x == 0) continue;
+
+                var value = data[x];
+
+                // Byte 5 of the identifier changes based on the state of the remote
                 // It is 0x00 on startup, 0x04 when deactivated, 0x05 when deactivated nunchuck passthrough,
                 // and 0x07 when deactivated classic passthrough
-                //
-                // [x != 0] is necessary due to the inconsistency noted above.
-                if (x != 4 && x != 0 && data[x] != ID_InactiveMotionPlus[x])
+                if (x == 4)
                 {
-                    _wmp_attached = false;
-                    return;
+                    if (value != 0 && value != 0x04 && value != 0x5 && value != 0x07)
+                        return;
+                    else
+                        continue;
                 }
+
+                // Already check active
+                if (x == 2)
+                {
+                    if (value != 0xA4 && value != 0xA6)
+                        return;
+                    else
+                        continue;
+                }
+                
+                if (value != ID_InactiveMotionPlus[x])
+                    return;
             }
             _wmp_attached = true;
         }
@@ -265,7 +301,9 @@ namespace WiimoteApi
             for (int x = 0; x < 6; x++) resized[x] = data[5 - x];
             long val = BitConverter.ToInt64(resized, 0);
 
-            Debug.Log(val.ToString("X12"));
+
+            if (WiimoteManager.Debug_Messages)
+                Debug.Log(val.ToString("X12"));
 
             if (val  == ID_ActiveMotionPlus)
             {
@@ -471,14 +509,15 @@ namespace WiimoteApi
 
             ExpectingWiiMotionPlusSwitch = true;
 
+
             return true;
         }
 
 
         public bool DeactivateWiiMotionPlus()
         {
-            if (current_ext != ExtensionController.MOTIONPLUS && current_ext != ExtensionController.MOTIONPLUS_CLASSIC && current_ext != ExtensionController.MOTIONPLUS_NUNCHUCK)
-                Debug.LogWarning("There is a request to deactivate the Wii Motion Plus even though it has not been activated!  Trying anyway.");
+            //if (current_ext != ExtensionController.MOTIONPLUS && current_ext != ExtensionController.MOTIONPLUS_CLASSIC && current_ext != ExtensionController.MOTIONPLUS_NUNCHUCK)
+                //Debug.LogWarning("There is a request to deactivate the Wii Motion Plus even though it has not been activated!  Trying anyway.");
             int res = SendRegisterWriteRequest(RegisterType.CONTROL, 0xA400F0, new byte[] { 0x55 });
             return res > 0;
         }
@@ -597,24 +636,34 @@ namespace WiimoteApi
             return first + second; // success
         }
 
-        private int SendSpeakerEnabled(bool enabled)
+        public int SendSpeakerEnabled(bool enabled)
         {
             byte[] mask = new byte[] { (byte)(enabled ? 0x04 : 0x00) };
 
             return SendWithType(OutputDataType.SPEAKER_ENABLE, mask);
         }
 
-        public void InitSpaker(){
+        private bool is_speaker_setup = false;
+
+        // Initializes the speaker!
+        // Note: Status.speaker_enabled won't update until SendStatusInfoRequest() is called
+        public void SetupSpeaker(byte volume = 255){
             SendSpeakerEnabled(true);
             SendSpeakerMuted(true);
             SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20009, new byte[] { 1 });
             SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20001, new byte[] { 8 });
-            int sampleRateValue = 150 * WiimoteManager.MaxWriteFrequency;
-            byte volume = 0x3F;
-            byte[] configData = new byte[7] { 0, 0, (byte)(sampleRateValue & 0xFF), (byte)((sampleRateValue >> 8) & 0xFF), volume, 0, 0 };
-            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20001, configData);
+            SendSpeakerConfig(volume);
             SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20008, new byte[] { 1 });
             SendSpeakerMuted(false);
+            is_speaker_setup = true;
+        }
+
+        public void SendSpeakerConfig(byte volume = 255){
+            int sampleRateValue = (int)(300.0 * SendRateMs);
+            volume >>= 2;
+            byte[] configData = new byte[7] { 0, 0, (byte)(sampleRateValue & 0xFF), (byte)((sampleRateValue >> 8) & 0xFF), volume, 0, 0 };
+            SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20001, configData);
+            //SendRegisterWriteRequest(RegisterType.CONTROL, 0xa20008, new byte[] { 1 }); // todo does this reset useful stuff?
         }
 
         public int SendSpeakerMuted(bool muted)
@@ -627,31 +676,74 @@ namespace WiimoteApi
         public void StopSound(){
             DataSender.SendSound(null, false);
         }
-        public void PlaySound(AudioClip sound, bool loop){
-            if (sound.channels != 1){
-                Debug.LogError($"Cannot play non-mono AudioClip {sound.name}, it has {sound.channels} channels!");
+
+        // Play a sound from an audio clip.
+        // The sound will be converted to wiimote-ready ADPCM format automatically every time.
+        // If you want to preload or cache conversions for performance, call ConvertSound() and
+        // play the result instead.
+        public void PlaySound(AudioClip sound, bool loop, byte volume = 255){
+            if (sound == null){
                 StopSound();
                 return;
+            }
+            
+            byte[] adpcm_samples = ConvertSound(sound);
+            PlaySound(adpcm_samples, loop, volume);
+        }
+
+        // Play a sound from wiimote-ready adpcm samples.
+        // Use this if you've preloaded audio with ConvertSound().
+        public void PlaySound(byte[] adpcm_samples, bool loop, byte volume = 255){
+            if (adpcm_samples == null){
+                // invalid
+                StopSound();
+                return;
+            }
+
+            if (!is_speaker_setup){
+                SetupSpeaker(volume);
+                DataSender.SendSound(adpcm_samples, loop);
+            } else {
+                SendSpeakerConfig(volume);
+                DataSender.SendSound(adpcm_samples, loop);
+            }
+        }
+
+        // Converts audio into wiimote-ready adpcm format.
+        // This is called automatically by PlaySound(AudioClip), but you can
+        // use this to preload or re-use clips if you need performance.
+        // (otherwise they're converted every call).
+        // Note: If SendRateMs is changed after converting then the adpcm values may have the wrong pitch!
+        public byte[] ConvertSound(AudioClip sound){
+            if (sound == null){
+                return null;
+            }
+            if (sound.channels != 1){
+                Debug.LogError($"Cannot convert non-mono AudioClip {sound.name}, it has {sound.channels} channels!");
+                return null;
             }
             if (sound.loadState != AudioDataLoadState.Loaded){
-                Debug.LogError($"Cannot play AudioClip {sound.name}, it is not loaded!  Set its loadType to DecompressOnLoad");
-                StopSound();
-                return;
+                Debug.LogError($"Cannot convert AudioClip {sound.name}, it is not loaded!  Set its loadType to DecompressOnLoad");
+                return null;
             }
-            // todo cache converted audioclips
+            
             int numSamples = sound.samples;
             float[] samples = new float[numSamples];
             sound.GetData(samples, 0);
-            PlaySound(new ReadOnlySpan<float>(samples), (double)sound.frequency, loop);
+            return ConvertSound(new ReadOnlySpan<float>(samples), (double)sound.frequency);
         }
 
-        public void PlaySound(ReadOnlySpan<float> samples, double source_sample_rate, bool loop){
-            if (source_sample_rate != WiimoteManager.AudioSampleRate)
-                samples = AudioConverter.Resample(samples, source_sample_rate, WiimoteManager.AudioSampleRate);
-            byte[] adpcm_samples = AudioConverter.ConvertSamplesToADPCM(samples);
-
-            DataSender.SendSound(adpcm_samples, loop);
+        // Converts audio into wiimote-ready adpcm format.
+        // This is used internally but you can call it if
+        // you have some raw samples you want to preload.
+        public byte[] ConvertSound(ReadOnlySpan<float> samples, double source_sample_rate){
+            double targetRate = TargetAudioSampleRate;
+            if (source_sample_rate != targetRate){
+                samples = AudioConverter.Resample(samples, source_sample_rate, targetRate);
+            }
+            return AudioConverter.ConvertSamplesToADPCM(samples);
         }
+
 
         /// \brief Request a Wii Remote Status update.
         /// \return On success > 0, <= 0 on failure.
@@ -796,7 +888,9 @@ namespace WiimoteApi
                     {
                         if (Status.ext_connected)                // The Wii Remote doesn't allow reading from the extension identifier
                         {                                        // when nothing is connected.
-                            Debug.Log("An extension has been connected.");
+
+                            if (WiimoteManager.Debug_Messages)
+                                Debug.Log("An extension has been connected.");
                             if (current_ext != ExtensionController.MOTIONPLUS)
                             {
                                 ActivateExtension();
@@ -809,7 +903,9 @@ namespace WiimoteApi
                         {
                             if (!ExpectingWiiMotionPlusSwitch)
                                 _current_ext = ExtensionController.NONE;
-                            Debug.Log("An extension has been disconnected.");
+
+                            if (WiimoteManager.Debug_Messages)
+                                Debug.Log("An extension has been disconnected.");
                         }
                     }
                     break;
@@ -829,7 +925,7 @@ namespace WiimoteApi
                     // Offset 0xa600fa is for the Wii Motion Plus.  This error code can be expected behavior in this case.
                     if (error == 0x07)
                     {
-                        if (CurrentReadData.Offset != 0xa600fa)
+                        if (CurrentReadData.Offset != 0xa600fa && CurrentReadData.Offset != 0xa400fa)
                             Debug.LogError("Wiimote reports Read Register error 7: Attempting to read from a write-only register (" + CurrentReadData.Offset.ToString("x") + ").  Aborting read.");
 
                         CurrentReadData = null;

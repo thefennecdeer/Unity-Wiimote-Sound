@@ -39,6 +39,8 @@ public static class AudioConverter {
 											230, 230, 230, 230, 307, 409, 512, 614 };
 
 	public static byte[] ConvertSamplesToADPCM(ReadOnlySpan<float> samples){
+		// copied from https://wiiyourself.gl.tter.org/
+
 		int adpcm_prev_value = 0;
 		int adpcm_step = 127;
 
@@ -75,8 +77,8 @@ public static class AudioConverter {
 			adpcm_step = (adpcm_step * step_scale[encoded_val]) >> 8;
 			if (adpcm_step < 127)
 				adpcm_step = 127;
-			else if (adpcm_step > 24576)
-				adpcm_step = 24576;
+			else if (adpcm_step > 0x6000)
+				adpcm_step = 0x6000;
 
 			if ((i & 1) == 0)
 				encoded_val <<= 4;

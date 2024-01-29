@@ -14,6 +14,7 @@ namespace WiimoteApi
 		internal IntPtr hidapi_wiimote;
 		internal bool should_exit = false;
 
+		internal double SendRateMs = WiimoteManager.DefaultSendRateMs;
 
 
 		private ConcurrentQueue<byte[]> write_queue = new ConcurrentQueue<byte[]>();
@@ -23,6 +24,7 @@ namespace WiimoteApi
 		private bool rumble = false;
 		private byte[] read_data = null;
 
+		private object sound_lock = new object();
 		private byte[] sound_to_play = null;
 		private bool loop_sound = false;
 		private bool muted = true;
@@ -62,13 +64,16 @@ namespace WiimoteApi
 		}
 
 		internal void SendSound(byte[] adpcm_samples, bool loop){
-			lock(sound_to_play) {
+			lock(sound_lock) {
+				if (sound_to_play == adpcm_samples)
+					sample_index = 0; // restart current clip.  todo: this isn't protected by the lock so it may cause a hitch!
 				sound_to_play = adpcm_samples;
 				loop_sound = loop;
 			}
 		}
 
 		internal void UpdateOnThread(){
+
 			// read
 			while (true){
 				if (read_data == null){
@@ -89,7 +94,7 @@ namespace WiimoteApi
 			// write
 			if (write_queue.TryDequeue(out byte[] data)){
 				if (data[0] == (byte)OutputDataType.SPEAKER_MUTE){
-					muted = (data[1] & 0x40) != 0;
+					muted = (data[1] & 0x04) != 0; // remember any mute/unmute requests
 				}
 				rumble = (data[1] & 1) != 0;
 				int res = HIDapi.hid_write(hidapi_wiimote, data, new UIntPtr(Convert.ToUInt32(data.Length)));
@@ -97,16 +102,21 @@ namespace WiimoteApi
 					Debug.LogError("HidAPI reports error " + res + " on write: " + Marshal.PtrToStringUni(HIDapi.hid_error(hidapi_wiimote)));
 				else if (WiimoteManager.Debug_Messages)
 					Debug.Log("Sent " + res + "b: [" + data[0].ToString("X").PadLeft(2, '0') + "] " + BitConverter.ToString(data, 1));
+
+				//return;
 			}
 
+			// sound
 			byte[] audio;
 			bool should_loop;
-			lock(sound_to_play) {
+			lock(sound_lock) {
 				audio = sound_to_play;
 				should_loop = loop_sound;
 			}
-			
-			if (audio != null){
+			if (audio == null){
+				current_sound = null;
+				sample_index = 0;
+			} else {
 				if (current_sound != audio){
 					// new sound
 					current_sound = audio;
@@ -121,11 +131,13 @@ namespace WiimoteApi
 							if (should_loop)
 								sample_index = 0;
 							else {
-								lock(sound_to_play){
+								lock(sound_lock){
 									if (sound_to_play == audio){
 										sound_to_play = null;
 									}
 								}
+								current_sound = null;
+								sample_index = 0;
 								break;
 							}
 						}
@@ -139,9 +151,6 @@ namespace WiimoteApi
 					if (res == -1)
 						Debug.LogError("HidAPI reports error " + res + " on write: " + Marshal.PtrToStringUni(HIDapi.hid_error(hidapi_wiimote)));
 				}
-			} else {
-				current_sound = null;
-				sample_index = 0;
 			}
 		}
 	}
